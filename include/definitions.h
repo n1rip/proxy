@@ -4,7 +4,6 @@
 #include "esp_bt_defs.h"
 
 #define SCAN_DURATION_SECONDS 5
-#define SCAN_MAX_TRIES 5
 #define TAG "proxy"
 
 /**

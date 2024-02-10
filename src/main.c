@@ -98,7 +98,7 @@ void hidh_callback(void *handler_args, esp_event_base_t base, int32_t id, void *
 }
 
 /**
- * @brief scans for a specified device mac address
+ * @brief scans for a specified device mac address and connects to the device
  * @param pvParameters a value that is passed as the paramater to the created task. 
 */
 void connect_device(void* pvParameters) {
@@ -106,7 +106,7 @@ void connect_device(void* pvParameters) {
     size_t results_len = 0;
     esp_hid_scan_result_t *results = NULL;
 
-    for (size_t i = 0; i < SCAN_MAX_TRIES; i++) {
+    while (!device->connected) {
         ESP_LOGI(TAG, "scanning for devices...");
         esp_hid_scan(SCAN_DURATION_SECONDS, &results_len, &results);
 
@@ -152,21 +152,11 @@ void connect_device(void* pvParameters) {
                 ESP_LOGI(TAG, "target device found. connecting...");
                 esp_hidh_dev_open(target->bda, target->transport, target->ble.addr_type);
                 device->connected = 1;
-                strpcy(device->name, target->name);
+                strcpy(device->name, target->name);
             }
 
             esp_hid_scan_results_free(results);
         }
-
-        if (i >= SCAN_MAX_TRIES || device->connected) {
-            break;
-        }
-
-        ESP_LOGI(TAG, "target device not found. retrying... (%d/%d)", i + 1, SCAN_MAX_TRIES);
-    }
-
-    if (!device->connected) {
-        ESP_LOGE(TAG, "cannot find the specified device after %d tries.", SCAN_MAX_TRIES);
     }
 
     vTaskDelete(NULL);
