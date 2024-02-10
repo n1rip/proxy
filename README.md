@@ -1,12 +1,16 @@
 # proxy
 
-(WIP) proxy is a microcontroller firmware acting as a proxy between a real bluetooth human interface device (such as a keyboard, a mouse or a controller) and a computer. it can process their input events before being transmitted to the target pc. check out the n1 project website at https://n1.rip/ or join the [discord server](https://discord.gg/PTYAeRdtHR).
+> [!WARNING]
+> this software is work in progress and may be broken in its present state.
+
+proxy is a microcontroller firmware acting as a proxy between a real bluetooth human interface device (such as a keyboard, a mouse or a controller) and a computer. it can process their input events before being transmitted to the target pc. only bluetooth low-energy (BLE) is planned to be supported. check out the n1 project website at https://n1.rip/ or join the [discord server](https://discord.gg/PTYAeRdtHR).
 
 ## requirements
 
 - [install esp-idf v5.1.2](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/get-started/) on your computer and don't forget to [setup the get_idf alias](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/get-started/linux-macos-setup.html#step-4-set-up-the-environment-variables).
-- an supported esp32 chip and usb cable for power. currently supported chips are:
+- a supported esp32 chip and usb cable for power. currently supported chips are:
     - esp32s3
+- a bluetooth low-energy (BLE) mouse.
 
 ## usage
 
