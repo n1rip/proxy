@@ -1,7 +1,7 @@
-# proxy
-
 > [!WARNING]
 > this software is work in progress and may be broken in its present state.
+
+# proxy
 
 proxy is a microcontroller firmware acting as a proxy between a real bluetooth human interface device (such as a keyboard, a mouse or a controller) and a computer. it can process their input events before being transmitted to the target pc. only bluetooth low-energy (BLE) is planned to be supported. check out the n1 project website at https://n1.rip/ or join the [discord server](https://discord.gg/PTYAeRdtHR).
 
