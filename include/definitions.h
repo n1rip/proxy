@@ -13,7 +13,6 @@
  * @param connected boolean value specifying whether the device is currently connected or not
 */
 typedef struct n1_bt_device_struct {
-    char name[256];
     esp_bd_addr_t address;
     esp_err_t connected;
-} n1_bt_device_struct_t;
+} bt_device_struct_t;
