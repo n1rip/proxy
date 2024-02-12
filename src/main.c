@@ -14,6 +14,8 @@
 #include "esp_bt_defs.h"
 #include "esp_gap_ble_api.h"
 #include "esp_gatts_api.h"
+#include "esp_gattc_api.h"
+#include "esp_gatt_common_api.h"
 #include "esp_gatt_defs.h"
 #include "esp_bt_main.h"
 #include "esp_bt_device.h"
@@ -27,7 +29,7 @@
  * @brief represents the mouse
 */
 static bt_device_struct_t mouse = {
-    .address = {0xF8, 0x1C, 0x9D, 0x70, 0xE8, 0x3D},
+    .address = {0xF8, 0x1C, 0x9D, 0x78, 0xE8, 0x3D},
     .connected = 0
 };
 
@@ -200,40 +202,41 @@ static void hidd_callback(void *handler_args, esp_event_base_t base, int32_t id,
 
     switch (event) {
     case ESP_HIDD_START_EVENT: {
-        ESP_LOGI(HIDD_TAG, "START");
+        ESP_LOGI(HIDD_TAG, "start");
         esp_hid_ble_gap_adv_start();
         break;
     }
     case ESP_HIDD_CONNECT_EVENT: {
-        ESP_LOGI(HIDD_TAG, "CONNECT");
+        ESP_LOGI(HIDD_TAG, "connect");
         computer.connected = 1;
         break;
     }
     case ESP_HIDD_PROTOCOL_MODE_EVENT: {
-        ESP_LOGI(HIDD_TAG, "PROTOCOL MODE[%u]: %s", param->protocol_mode.map_index, param->protocol_mode.protocol_mode ? "REPORT" : "BOOT");
+        ESP_LOGI(HIDD_TAG, "protocol mode[%u]: %s", param->protocol_mode.map_index, param->protocol_mode.protocol_mode ? "REPORT" : "BOOT");
         break;
     }
     case ESP_HIDD_CONTROL_EVENT: {
-        ESP_LOGI(HIDD_TAG, "CONTROL[%u]: %sSUSPEND", param->control.map_index, param->control.control ? "EXIT_" : "");
+        ESP_LOGI(HIDD_TAG, "control[%u]: %ssuspend", param->control.map_index, param->control.control ? "EXIT_" : "");
         break;
     }
     case ESP_HIDD_OUTPUT_EVENT: {
-        ESP_LOGI(HIDD_TAG, "OUTPUT[%u]: %8s ID: %2u, Len: %d, Data:", param->output.map_index, esp_hid_usage_str(param->output.usage), param->output.report_id, param->output.length);
+        ESP_LOGI(HIDD_TAG, "output[%u]: %8s id: %2u, len: %d, data:", param->output.map_index, esp_hid_usage_str(param->output.usage), param->output.report_id, param->output.length);
         ESP_LOG_BUFFER_HEX(HIDD_TAG, param->output.data, param->output.length);
         break;
     }
     case ESP_HIDD_FEATURE_EVENT: {
-        ESP_LOGI(HIDD_TAG, "FEATURE[%u]: %8s ID: %2u, Len: %d, Data:", param->feature.map_index, esp_hid_usage_str(param->feature.usage), param->feature.report_id, param->feature.length);
+        ESP_LOGI(HIDD_TAG, "feature[%u]: %8s id: %2u, len: %d, data:", param->feature.map_index, esp_hid_usage_str(param->feature.usage), param->feature.report_id, param->feature.length);
         ESP_LOG_BUFFER_HEX(HIDD_TAG, param->feature.data, param->feature.length);
         break;
     }
     case ESP_HIDD_DISCONNECT_EVENT: {
-        ESP_LOGI(HIDD_TAG, "DISCONNECT: %s", esp_hid_disconnect_reason_str(esp_hidd_dev_transport_get(param->disconnect.dev), param->disconnect.reason));
+        ESP_LOGI(HIDD_TAG, "disconnect: %s", esp_hid_disconnect_reason_str(esp_hidd_dev_transport_get(param->disconnect.dev), param->disconnect.reason));
         esp_hid_ble_gap_adv_start();
+        esp_restart();
         break;
     }
     case ESP_HIDD_STOP_EVENT: {
-        ESP_LOGI(HIDD_TAG, "STOP");
+        ESP_LOGI(HIDD_TAG, "stop");
         break;
     }
     default:
@@ -277,6 +280,7 @@ void hidh_callback(void *handler_args, esp_event_base_t base, int32_t id, void *
 
                 ESP_LOGI(HIDH_TAG, ESP_BD_ADDR_STR " open: %s", ESP_BD_ADDR_HEX(bda), esp_hidh_dev_name_get(param->open.dev));
                 esp_hidh_dev_dump(param->open.dev, stdout);
+                memcpy(mouse.address, bda, 6);
             } else {
                 ESP_LOGE(HIDH_TAG, " open failed!");
             }
@@ -333,14 +337,19 @@ void connect_device(bt_device_struct_t* device) {
             esp_hid_scan_result_t *target = NULL;
 
             while (r) {
+                if (!compare_bd_addr(device->address, r->bda)) {
+                    break;
+                }
+
+                ESP_LOGI(TAG, "target device found");
+
+                target = r;
+
                 printf("  %s: " ESP_BD_ADDR_STR ", ", (r->transport == ESP_HID_TRANSPORT_BLE) ? "BLE" : "BT ", ESP_BD_ADDR_HEX(r->bda));
                 printf("rssi: %d, ", r->rssi);
                 printf("usage: %s, ", esp_hid_usage_str(r->usage));
 
                 if (r->transport == ESP_HID_TRANSPORT_BLE) {
-                    if (compare_bd_addr(device->address, r->bda)) {
-                        target = r;
-                    }
                     printf("appearance: 0x%04x, ", r->ble.appearance);
                     printf("addr_type: '%s', ", ble_addr_type_str(r->ble.addr_type));
                 }
@@ -351,13 +360,38 @@ void connect_device(bt_device_struct_t* device) {
             }
 
             if (target && !device->connected) {
-                ESP_LOGI(TAG, "target device found. connecting...");
+                ESP_LOGI(TAG, "connecting...");
                 esp_hidh_dev_open(target->bda, target->transport, target->ble.addr_type);
                 device->connected = 1;
             }
 
             esp_hid_scan_results_free(results);
         }
+    }
+}
+
+/**
+ * @note debug
+ * @brief gets and print the connection parameters for a connected device
+ * @param pvParameters undefined
+*/
+void get_params_task(void* pvParameters) {
+    esp_gap_conn_params_t p = {0};
+
+    while (1) {
+        vTaskDelay(1000 / portTICK_PERIOD_MS);
+        ESP_ERROR_CHECK(esp_ble_get_current_conn_params(mouse.address, &p));
+        ESP_LOGW(TAG, "conn_params: interval=%d, latency=%d, timeout=%d", p.interval, p.latency, p.timeout);
+    }
+
+    vTaskDelete(NULL);
+}
+
+void connect_computer(bt_device_struct_t *computer) {
+    ESP_LOGI(TAG, "waiting computer connexion...");
+
+    while (!computer->connected) {
+        vTaskDelay(1000 / portTICK_PERIOD_MS);
     }
 }
 
@@ -375,6 +409,10 @@ void app_main(void) {
         .callback_arg = NULL,
     };
 
+    // esp_ble_gap_set_prefer_conn_params(): before connection, master role only
+    // esp_ble_gap_update_conn_params(): can only be used when the connexion is up
+    // esp_ble_gap_prefer_ext_connect_params_set(): set aux parameters
+
 #if HID_HOST_MODE == HIDH_IDLE_MODE
     ESP_LOGE(TAG, "please turn on BT HID host or BLE!");
     return;
@@ -386,6 +424,9 @@ void app_main(void) {
         ret = nvs_flash_init();
     }
     ESP_ERROR_CHECK(ret);
+
+    // ESP_ERROR_CHECK(esp_ble_gatt_set_local_mtu(9));
+    // ESP_ERROR_CHECK(esp_ble_gap_set_prefer_conn_params());
     
     ESP_LOGI(TAG, "setting hid gap, mode:%d", HID_HOST_MODE);
     ESP_ERROR_CHECK(esp_hid_gap_init(HID_HOST_MODE));
@@ -400,10 +441,8 @@ void app_main(void) {
     ESP_ERROR_CHECK(esp_ble_gattc_register_callback(esp_hidh_gattc_event_handler));
     ESP_ERROR_CHECK(esp_hidh_init(&config));
 
-    ESP_LOGI(TAG, "waiting computer connexion...");
-    while (!computer.connected) {
-
-    }
-
+    connect_computer(&computer);
     connect_device(&mouse);
+
+    xTaskCreate(&get_params_task, "get_params_task", 6 * 1024, NULL, 2, NULL);
 }
