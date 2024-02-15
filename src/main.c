@@ -37,6 +37,7 @@ static bt_device_struct_t mouse = {
  * @brief represents the computer
 */
 static bt_device_struct_t computer = {
+    .address = {0},
     .connected = 0
 };
 
@@ -178,14 +179,30 @@ static esp_hid_device_config_t hidd_config = {
  * @param dy y displacement
  * @param wheel mouse wheel roll
 */
-void send_mouse(uint8_t buttons, char dx, char dy, char wheel) {
+void send_mouse(uint8_t buttons, int16_t dx, int16_t dy, char wheel) {
     static uint8_t buffer[4] = {0};
 
     buffer[0] = buttons;
     buffer[1] = dx;
     buffer[2] = dy;
     buffer[3] = wheel;
-    esp_hidd_dev_input_set(hid_mouse.hid_dev, 0, 1, buffer, 4);
+    esp_hidd_dev_input_set(hid_mouse.hid_dev, 0, 1, buffer, 9);
+}
+
+/**
+ * @brief compares two bluetooth mac addresses
+ * @param src source address to compare with
+ * @param dst destination address to compare with
+ * @return 1 if the addresses are different, 0 otherwise
+*/
+int compare_bd_addr(esp_bd_addr_t src, esp_bd_addr_t dst) {
+    for (size_t i = 0; i < ESP_BD_ADDR_LEN; i++) {
+        if (src[i] != dst[i]) {
+            return 1;
+        }
+    }
+
+    return 0;
 }
 
 /**
@@ -246,22 +263,6 @@ static void hidd_callback(void *handler_args, esp_event_base_t base, int32_t id,
 }
 
 /**
- * @brief compares two bluetooth mac addresses
- * @param src source address to compare with
- * @param dst destination address to compare with
- * @return 1 if the addresses are different, 0 otherwise
-*/
-int compare_bd_addr(esp_bd_addr_t src, esp_bd_addr_t dst) {
-    for (size_t i = 0; i < ESP_BD_ADDR_LEN; i++) {
-        if (src[i] != dst[i]) {
-            return 1;
-        }
-    }
-
-    return 0;
-}
-
-/**
  * @brief handles the recieved bluetooth events for the host state of the controller
  * @param handler_args event handler args
  * @param base unique pointer to a subsystem that exposes events
@@ -293,10 +294,10 @@ void hidh_callback(void *handler_args, esp_event_base_t base, int32_t id, void *
             break;
         }
         case ESP_HIDH_INPUT_EVENT: {
-            const uint8_t *bda = esp_hidh_dev_bda_get(param->input.dev);
+            // const uint8_t *bda = esp_hidh_dev_bda_get(param->input.dev);
 
-            ESP_LOGI(HIDH_TAG, ESP_BD_ADDR_STR " input: %8s, map: %2u, id: %3u, len: %d, data:", ESP_BD_ADDR_HEX(bda), esp_hid_usage_str(param->input.usage), param->input.map_index, param->input.report_id, param->input.length);
-            ESP_LOG_BUFFER_HEX(HIDH_TAG, param->input.data, param->input.length);
+            // ESP_LOGI(HIDH_TAG, ESP_BD_ADDR_STR " input: %8s, map: %2u, id: %3u, len: %d, data:", ESP_BD_ADDR_HEX(bda), esp_hid_usage_str(param->input.usage), param->input.map_index, param->input.report_id, param->input.length);
+            // ESP_LOG_BUFFER_HEX(HIDH_TAG, param->input.data, param->input.length);
             esp_hidd_dev_input_set(hid_mouse.hid_dev, param->input.map_index, 1, param->input.data, param->input.length);
             break;
         }
@@ -424,9 +425,6 @@ void app_main(void) {
         ret = nvs_flash_init();
     }
     ESP_ERROR_CHECK(ret);
-
-    // ESP_ERROR_CHECK(esp_ble_gatt_set_local_mtu(9));
-    // ESP_ERROR_CHECK(esp_ble_gap_set_prefer_conn_params());
     
     ESP_LOGI(TAG, "setting hid gap, mode:%d", HID_HOST_MODE);
     ESP_ERROR_CHECK(esp_hid_gap_init(HID_HOST_MODE));
@@ -443,6 +441,4 @@ void app_main(void) {
 
     connect_computer(&computer);
     connect_device(&mouse);
-
-    xTaskCreate(&get_params_task, "get_params_task", 6 * 1024, NULL, 2, NULL);
 }
