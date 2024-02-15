@@ -1,4 +1,5 @@
 > [!WARNING]
+> this software is a proof-of-concept, the latency and the lag is too heavy to be used with a real mouse, for a real video-game use case. could work fine with any other program that doesn't need fast input transfer. if you happen to find a way to reduce latency and stutter such as it can be used smoothly, contact me at ataractic@pm.me.
 
 # proxy
 
